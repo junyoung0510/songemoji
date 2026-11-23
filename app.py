@@ -1,7 +1,4 @@
-import base64
 import html
-import mimetypes
-from pathlib import Path
 
 import streamlit as st
 
@@ -21,10 +18,15 @@ FEATURES = [
     ("💬", "소통이 매우 활발하며 애송이분들과 관리진 모두 먼저 친근하게 다가와 적응이 매우 쉬움 .ᐟ", ""),
     ("🏆", "디스보드·디코올 이모지 서버 후기 1등, 서버 내 후기 10000+로 증명된 퀄리티 자랑 .ᐟ", ""),
 ]
+# 이미지 불러오는 방법
+# 기본: 저장소의 static 폴더에서 불러와요 (.streamlit/config.toml 파일이 있어야 해요)
+# 그래도 이미지가 안 보이면 깃허브 raw 주소를 적어 주세요. 예: "https://raw.githubusercontent.com/내아이디/저장소이름/main/static/"
+IMAGE_BASE_URL = ""
+HERO_IMAGE = "song-emoji.gif"  # 히어로(맨 위) 배경 이미지 - static 폴더 안의 파일 이름
 LED_TEXT = "💗 송이모지에 오신 걸 환영해요! 편하게 놀다 가세요 💗"  # 상단 LED 간판에 흘러가는 환영 문구
 # 시리즈 배너 구역: (아이콘, 구역 이름, [묶음들])
 # 묶음 하나 = (배너 이미지 목록, 배너 소개 문구 목록) - 소개의 첫 줄은 크게, 나머지 줄은 작게 보여요
-# 이미지는 https 주소나 app.py 옆 폴더의 파일 경로를 적어요. 묶음을 비워 두면 '준비 중'으로 보여요.
+# 이미지는 static 폴더 안의 파일 경로(예: banners/a.gif)나 https 주소를 적어요. 묶음을 비워 두면 '준비 중'으로 보여요.
 SERIES = [
     ("🧽", "스폰지밥", []),
     ("🌀", "우연운명필연", []),
@@ -104,13 +106,15 @@ def clean(text):
     return "\n".join(line.strip() for line in text.splitlines() if line.strip())
 
 
-# 배경 이미지: song-emoji.gif가 없어도 오류 없이 분홍 배경으로 보여요.
-gif_path = Path(__file__).parent / "song-emoji.gif"
-if gif_path.exists():
-    b64 = base64.b64encode(gif_path.read_bytes()).decode()
-    hero_bg = "#f7a8c4 url(data:image/gif;base64," + b64 + ") center/cover no-repeat"
-else:
-    hero_bg = "linear-gradient(135deg, #f7a8c4, #e8336f)"
+def img_url(value):
+    # https 주소는 그대로, 파일 이름은 static 폴더(또는 IMAGE_BASE_URL) 기준 주소로 바꿔요.
+    if value.startswith(("http://", "https://", "data:")):
+        return value
+    base = IMAGE_BASE_URL.rstrip("/") + "/" if IMAGE_BASE_URL else "app/static/"
+    return base + value.lstrip("/")
+
+
+hero_bg = '#f7a8c4 url("{}") center/cover no-repeat'.format(img_url(HERO_IMAGE))
 
 CSS = """
 <style>
@@ -243,23 +247,12 @@ else:
 led_group = "".join("<span>{}</span>".format(html.escape(LED_TEXT)) for _ in range(4))
 led_html = '<div class="sg-led"><div class="sg-led-track">' + led_group + led_group + "</div></div>"
 
-def banner_src(value):
-    # https 주소는 그대로, 파일 경로는 app.py 옆에서 찾아 읽어요.
-    if value.startswith(("http://", "https://", "data:")):
-        return value
-    path = Path(__file__).parent / value
-    if not path.exists():
-        return ""
-    mime = mimetypes.guess_type(path.name)[0] or "image/png"
-    return "data:{};base64,{}".format(mime, base64.b64encode(path.read_bytes()).decode())
-
-
 zones = []
 for icon, name, groups in SERIES:
     blocks = []  # (배너가 1장인지, 묶음 HTML)
     for images, caption in groups:
         cells = "".join(
-            '<div class="sg-banner"><img src="{}" alt="{}"></div>'.format(html.escape(banner_src(u)), html.escape(name))
+            '<div class="sg-banner"><img src="{}" alt="{}"></div>'.format(html.escape(img_url(u)), html.escape(name))
             for u in images
         )
         cap_html = ""
